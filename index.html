@@ -33,7 +33,6 @@
   button{font-family:inherit; cursor:pointer;}
   ::selection{background:var(--accent); color:#fff;}
 
-  /* ---------- layout shell ---------- */
   #app{min-height:100vh; display:flex; flex-direction:column;}
   .topbar{
     position:sticky; top:0; z-index:40;
@@ -63,7 +62,6 @@
 
   main{flex:1; padding:40px 32px 100px; max-width:1280px; width:100%; margin:0 auto;}
 
-  /* ---------- login screen ---------- */
   .login-screen{
     min-height:100vh; display:flex; align-items:center; justify-content:center;
     background:var(--ink); color:#fff; flex-direction:column; gap:28px; padding:24px; text-align:center;
@@ -81,7 +79,6 @@
   }
   .btn-google:hover{transform:translateY(-1px);}
 
-  /* ---------- brand list ---------- */
   .page-head{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; gap:16px; flex-wrap:wrap;}
   .page-head .eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:6px; display:block;}
   .page-head h1{font-size:32px; margin:0; font-weight:800; letter-spacing:-0.02em;}
@@ -104,11 +101,10 @@
   .brand-card:hover{transform:translateY(-3px); box-shadow:0 14px 30px rgba(20,20,26,.08); border-color:var(--ink-faint);}
   .card-delete{
     position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%;
-    background:rgba(20,20,26,.66); color:#fff; border:none; font-size:14px; display:flex;
-    align-items:center; justify-content:center; opacity:0; transition:.15s; z-index:5;
+    background:rgba(20,20,26,.7); color:#fff; border:none; font-size:14px; display:flex;
+    align-items:center; justify-content:center; opacity:1; transition:.15s; z-index:5;
   }
-  .brand-card:hover .card-delete, .m-item:hover .card-delete, .done-card:hover .card-delete{opacity:1;}
-  .card-delete:hover{background:var(--accent);}
+  .card-delete:hover{background:var(--accent); transform:scale(1.08);}
   .brand-card .cover{
     height:140px; background:var(--tag-bg); background-size:cover; background-position:center;
     display:flex; align-items:center; justify-content:center; color:var(--ink-faint); font-size:12px;
@@ -126,7 +122,6 @@
 
   .empty-note{color:var(--ink-muted); font-size:13px; padding:40px 0; text-align:center;}
 
-  /* ---------- workspace ---------- */
   .back-link{
     display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-muted);
     font-weight:600; margin-bottom:18px;
@@ -145,7 +140,6 @@
   .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
   .toolbar .count{font-size:13px; color:var(--ink-muted);}
 
-  /* masonry grid — signature element */
   .masonry{column-count:4; column-gap:16px;}
   @media (max-width:1100px){.masonry{column-count:3;}}
   @media (max-width:760px){.masonry{column-count:2;}}
@@ -173,7 +167,6 @@
   .m-add:hover{border-color:var(--accent); color:var(--accent); background:#fff;}
   .m-add .plus{font-size:24px; font-weight:400;}
 
-  /* completed grid: simpler even grid */
   .done-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px;}
   .done-card{
     background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
@@ -190,7 +183,6 @@
   }
   .done-add:hover{border-color:var(--accent); color:var(--accent); background:#fff;}
 
-  /* ---------- modal / lightbox ---------- */
   .overlay{
     position:fixed; inset:0; background:rgba(15,14,18,.62); backdrop-filter:blur(3px);
     display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
@@ -214,9 +206,8 @@
   .btn-cancel{background:transparent; border:none; color:var(--ink-muted); font-size:13.5px; font-weight:600; padding:10px 14px;}
   .btn-cancel:hover{color:var(--ink);}
 
-  /* lightbox */
   .lightbox{
-    position:fixed; inset:0; background:rgba(10,9,12,.86); z-index:110;
+    position:fixed; inset:0; background:rgba(8,7,10,.97); z-index:110;
     display:flex; align-items:stretch; justify-content:center; padding:28px;
   }
   .lb-inner{
@@ -336,7 +327,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-/* ---------------- image resize + upload helper ---------------- */
 function resizeImageFile(file, maxDim = 1920, quality = 0.85){
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -367,7 +357,6 @@ async function uploadImageFile(file, pathPrefix){
   return await getDownloadURL(storageRef);
 }
 
-/* ---------------- delete helpers ---------------- */
 async function deleteImageAndPrompts(imageId){
   const promptSnap = await getDocs(query(collection(db, "prompts"), where("imageId", "==", imageId)));
   await Promise.all(promptSnap.docs.map(d => deleteDoc(doc(db, "prompts", d.id))));
@@ -382,14 +371,13 @@ async function deleteBrandCascade(brandId){
   await deleteDoc(doc(db, "brands", brandId));
 }
 
-/* ---------------- state ---------------- */
 let currentUser = null;
 let brands = [];
 let route = { page: "list", brandId: null, tab: "moodboard" };
 let unsubBrands = null;
 let unsubImages = null;
-let currentImages = []; // moodboard or completed images for active brand
-let promptsByImage = {}; // imageId -> [{id, text, version, createdAt}]
+let currentImages = [];
+let promptsByImage = {};
 let unsubPromptListeners = {};
 let lightboxImageId = null;
 let lightboxActiveVersionIdx = null;
@@ -397,7 +385,6 @@ let pendingJumpToLatest = false;
 
 const mainEl = document.getElementById("main");
 
-/* ---------------- auth ---------------- */
 document.getElementById("google-login-btn").addEventListener("click", () => {
   signInWithPopup(auth, new GoogleAuthProvider()).catch(err => showToast("로그인 실패: " + err.message));
 });
@@ -421,7 +408,6 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-/* ---------------- firestore subscriptions ---------------- */
 function subscribeBrands(){
   const q = query(collection(db, "brands"), orderBy("createdAt", "desc"));
   unsubBrands = onSnapshot(q, (snap) => {
@@ -454,7 +440,6 @@ function subscribePrompts(imageId){
   }, (err) => { console.error(err); showToast("프롬프트 불러오기 실패: " + err.message); });
 }
 
-/* ---------------- routing ---------------- */
 window.addEventListener("hashchange", handleHash);
 function handleHash(){
   const h = location.hash.replace("#","");
@@ -472,7 +457,6 @@ handleHash();
 
 function go(hash){ location.hash = hash; }
 
-/* ---------------- helpers ---------------- */
 function showToast(msg){
   const root = document.getElementById("toast-root");
   const el = document.createElement("div");
@@ -492,7 +476,6 @@ function fmtDate(ts){
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
 }
 
-/* ---------------- render ---------------- */
 function render(){
   if (route.page === "list") renderBrandList();
   else if (route.page === "brand") renderBrandWorkspace();
@@ -633,7 +616,6 @@ function renderBrandWorkspace(){
   }
 }
 
-/* ---------------- add brand modal ---------------- */
 function openAddBrandModal(){
   renderOverlay(`
     <div class="modal">
@@ -666,7 +648,6 @@ function openAddBrandModal(){
   });
 }
 
-/* ---------------- add image (moodboard) modal ---------------- */
 function openAddImageModal(brandId, type){
   renderOverlay(`
     <div class="modal">
@@ -709,7 +690,6 @@ function openAddImageModal(brandId, type){
   });
 }
 
-/* ---------------- add completed modal ---------------- */
 function openAddCompletedModal(brandId, moodImages){
   const options = moodImages.map(m => `<option value="${m.id}">${(m.tag || m.id.slice(0,6))}</option>`).join("");
   renderOverlay(`
@@ -762,7 +742,6 @@ function openAddCompletedModal(brandId, moodImages){
   });
 }
 
-/* ---------------- lightbox (image + prompt versions) ---------------- */
 function openLightbox(imageId){
   lightboxImageId = imageId;
   const prompts = promptsByImage[imageId] || [];
@@ -877,7 +856,6 @@ function renderNewPromptForm(){
   });
 }
 
-/* ---------------- generic overlay ---------------- */
 function renderOverlay(innerHtml){
   closeOverlay();
   const el = document.createElement("div");
