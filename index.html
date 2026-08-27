@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>무드보드 허브</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --bg:#F6F5F1;
+    --surface:#FFFFFF;
+    --ink:#14141A;
+    --ink-muted:#726F66;
+    --ink-faint:#A9A69C;
+    --accent:#FF5A36;
+    --accent-ink:#FFFFFF;
+    --plum:#463A66;
+    --line:#E4E2DA;
+    --tag-bg:#EDEBE3;
+    --radius:14px;
+    --radius-sm:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit; cursor:pointer;}
+  ::selection{background:var(--accent); color:#fff;}
+
+  /* ---------- layout shell ---------- */
+  #app{min-height:100vh; display:flex; flex-direction:column;}
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 32px;
+    background:rgba(246,245,241,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand-mark{
+    display:flex; align-items:center; gap:10px;
+    font-weight:800; font-size:16px; letter-spacing:-0.01em;
+  }
+  .brand-mark .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .topbar-right{display:flex; align-items:center; gap:14px;}
+  .user-chip{
+    display:flex; align-items:center; gap:8px;
+    font-size:13px; color:var(--ink-muted);
+  }
+  .user-chip img{width:26px;height:26px;border-radius:50%; border:1px solid var(--line);}
+  .btn-ghost{
+    border:1px solid var(--line); background:var(--surface); color:var(--ink-muted);
+    padding:7px 14px; border-radius:999px; font-size:13px; font-weight:600;
+    transition:.15s;
+  }
+  .btn-ghost:hover{border-color:var(--ink-faint); color:var(--ink);}
+
+  main{flex:1; padding:40px 32px 100px; max-width:1280px; width:100%; margin:0 auto;}
+
+  /* ---------- login screen ---------- */
+  .login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--ink); color:#fff; flex-direction:column; gap:28px; padding:24px; text-align:center;
+  }
+  .login-screen .eyebrow{
+    font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700;
+  }
+  .login-screen h1{font-size:34px; margin:0; font-weight:800; letter-spacing:-0.02em;}
+  .login-screen p{color:#B9B7B0; font-size:14px; margin:0; max-width:320px; line-height:1.6;}
+  .btn-google{
+    display:flex; align-items:center; gap:10px;
+    background:#fff; color:#14141A; border:none; padding:13px 24px; border-radius:999px;
+    font-size:14px; font-weight:700; box-shadow:0 8px 30px rgba(0,0,0,.35);
+    transition:.15s;
+  }
+  .btn-google:hover{transform:translateY(-1px);}
+
+  /* ---------- brand list ---------- */
+  .page-head{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; gap:16px; flex-wrap:wrap;}
+  .page-head .eyebrow{font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:6px; display:block;}
+  .page-head h1{font-size:32px; margin:0; font-weight:800; letter-spacing:-0.02em;}
+  .btn-primary{
+    background:var(--ink); color:#fff; border:none; padding:12px 20px; border-radius:999px;
+    font-size:14px; font-weight:700; display:inline-flex; align-items:center; gap:8px;
+    transition:.15s;
+  }
+  .btn-primary:hover{background:var(--accent);}
+  .btn-primary.solo{background:var(--accent);}
+  .btn-primary.solo:hover{background:#e64a26;}
+
+  .brand-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:18px;
+  }
+  .brand-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; display:flex; flex-direction:column; transition:.18s; position:relative;
+  }
+  .brand-card:hover{transform:translateY(-3px); box-shadow:0 14px 30px rgba(20,20,26,.08); border-color:var(--ink-faint);}
+  .brand-card .cover{
+    height:140px; background:var(--tag-bg); background-size:cover; background-position:center;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-faint); font-size:12px;
+  }
+  .brand-card .body{padding:16px 16px 18px;}
+  .brand-card .name{font-weight:800; font-size:16px; margin:0 0 4px; letter-spacing:-0.01em;}
+  .brand-card .meta{font-size:12px; color:var(--ink-muted);}
+  .brand-card.add-new{
+    align-items:center; justify-content:center; text-align:center; min-height:198px;
+    border-style:dashed; color:var(--ink-muted); font-weight:700; font-size:14px; gap:8px;
+    background:transparent;
+  }
+  .brand-card.add-new:hover{color:var(--accent); border-color:var(--accent); background:#fff;}
+  .brand-card.add-new .plus{font-size:26px; font-weight:400;}
+
+  .empty-note{color:var(--ink-muted); font-size:13px; padding:40px 0; text-align:center;}
+
+  /* ---------- workspace ---------- */
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-muted);
+    font-weight:600; margin-bottom:18px;
+  }
+  .back-link:hover{color:var(--ink);}
+  .ws-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-wrap:wrap; gap:12px;}
+  .ws-head h1{font-size:30px; margin:0; font-weight:800; letter-spacing:-0.02em;}
+  .tabs{display:flex; gap:6px; margin:22px 0 26px; border-bottom:1px solid var(--line);}
+  .tab{
+    padding:10px 4px; margin-right:22px; font-size:14px; font-weight:700; color:var(--ink-faint);
+    border-bottom:2px solid transparent; margin-bottom:-1px; transition:.15s;
+  }
+  .tab.active{color:var(--ink); border-bottom-color:var(--accent);}
+  .tab:hover{color:var(--ink);}
+
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; gap:12px; flex-wrap:wrap;}
+  .toolbar .count{font-size:13px; color:var(--ink-muted);}
+
+  /* masonry grid — signature element */
+  .masonry{column-count:4; column-gap:16px;}
+  @media (max-width:1100px){.masonry{column-count:3;}}
+  @media (max-width:760px){.masonry{column-count:2;}}
+  @media (max-width:480px){.masonry{column-count:1;}}
+  .m-item{
+    break-inside:avoid; margin-bottom:16px; border-radius:var(--radius); overflow:hidden;
+    position:relative; cursor:pointer; background:var(--surface); border:1px solid var(--line);
+    transition:.18s;
+  }
+  .m-item:hover{box-shadow:0 14px 30px rgba(20,20,26,.1); transform:translateY(-2px); border-color:var(--ink-faint);}
+  .m-item img{display:block; width:100%; height:auto;}
+  .m-item .tag{
+    position:absolute; top:10px; left:10px; background:rgba(20,20,26,.72); color:#fff; font-size:11px;
+    padding:4px 9px; border-radius:999px; font-weight:600; backdrop-filter:blur(4px);
+  }
+  .m-item .prompt-count{
+    position:absolute; bottom:10px; right:10px; background:rgba(255,255,255,.92); color:var(--ink);
+    font-size:11px; padding:4px 8px; border-radius:999px; font-weight:700;
+  }
+  .m-add{
+    break-inside:avoid; margin-bottom:16px; border-radius:var(--radius); border:1.5px dashed var(--line);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    min-height:160px; color:var(--ink-muted); font-weight:700; font-size:13px; transition:.15s;
+  }
+  .m-add:hover{border-color:var(--accent); color:var(--accent); background:#fff;}
+  .m-add .plus{font-size:24px; font-weight:400;}
+
+  /* completed grid: simpler even grid */
+  .done-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px;}
+  .done-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
+  }
+  .done-card .img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--tag-bg);}
+  .done-card .body{padding:12px 14px;}
+  .done-card .note{font-size:12.5px; color:var(--ink); line-height:1.5; margin:0 0 4px;}
+  .done-card .ref{font-size:11.5px; color:var(--ink-muted);}
+  .done-add{
+    border:1.5px dashed var(--line); border-radius:var(--radius);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    min-height:180px; color:var(--ink-muted); font-weight:700; font-size:13px;
+  }
+  .done-add:hover{border-color:var(--accent); color:var(--accent); background:#fff;}
+
+  /* ---------- modal / lightbox ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(15,14,18,.62); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .hidden{display:none !important;}
+  .modal{
+    background:var(--surface); border-radius:18px; width:100%; max-width:440px; padding:26px;
+    box-shadow:0 30px 80px rgba(0,0,0,.3);
+  }
+  .modal h2{margin:0 0 4px; font-size:19px; font-weight:800;}
+  .modal .sub{font-size:12.5px; color:var(--ink-muted); margin:0 0 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:700; color:var(--ink-muted); margin-bottom:6px;}
+  .field input, .field textarea, .field select{
+    width:100%; border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px;
+    font-family:inherit; font-size:13.5px; background:var(--bg); color:var(--ink);
+  }
+  .field textarea{resize:vertical; min-height:70px;}
+  .field input:focus, .field textarea:focus, .field select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:6px;}
+  .btn-cancel{background:transparent; border:none; color:var(--ink-muted); font-size:13.5px; font-weight:600; padding:10px 14px;}
+  .btn-cancel:hover{color:var(--ink);}
+
+  /* lightbox */
+  .lightbox{
+    position:fixed; inset:0; background:rgba(10,9,12,.86); z-index:110;
+    display:flex; align-items:stretch; justify-content:center; padding:28px;
+  }
+  .lb-inner{
+    background:var(--surface); border-radius:18px; overflow:hidden; display:flex; max-width:1100px; width:100%;
+    max-height:100%;
+  }
+  .lb-img-pane{flex:1.3; background:#0e0d10; display:flex; align-items:center; justify-content:center; min-width:0;}
+  .lb-img-pane img{max-width:100%; max-height:100%; object-fit:contain;}
+  .lb-side{flex:1; min-width:320px; max-width:380px; display:flex; flex-direction:column; padding:22px; overflow-y:auto;}
+  .lb-close{
+    position:absolute; top:20px; right:20px; background:rgba(255,255,255,.14); color:#fff; border:none;
+    width:36px; height:36px; border-radius:50%; font-size:16px; display:flex; align-items:center; justify-content:center;
+    z-index:120;
+  }
+  .lb-close:hover{background:rgba(255,255,255,.26);}
+  .lb-title{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); font-weight:700; margin-bottom:4px;}
+  .lb-side h3{margin:0 0 16px; font-size:18px; font-weight:800;}
+  .version-tabs{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
+  .v-tab{
+    padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; border:1px solid var(--line);
+    color:var(--ink-muted); background:var(--bg);
+  }
+  .v-tab.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .v-tab .latest-dot{width:6px; height:6px; border-radius:50%; background:var(--accent); display:inline-block; margin-left:5px;}
+  .v-add-tab{
+    padding:6px 10px; border-radius:999px; font-size:14px; border:1.5px dashed var(--line); color:var(--ink-faint); background:transparent;
+  }
+  .v-add-tab:hover{color:var(--accent); border-color:var(--accent);}
+  .prompt-box{
+    background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px;
+    font-size:13.5px; line-height:1.65; color:var(--ink); white-space:pre-wrap; min-height:100px; margin-bottom:10px;
+    flex:1;
+  }
+  .prompt-date{font-size:11.5px; color:var(--ink-faint); margin-bottom:14px;}
+  .lb-actions{display:flex; gap:8px; margin-top:auto; padding-top:14px;}
+  .btn-copy{
+    flex:1; background:var(--accent); color:#fff; border:none; border-radius:var(--radius-sm); padding:11px 14px;
+    font-weight:700; font-size:13.5px; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-copy:hover{background:#e64a26;}
+  .btn-copy.copied{background:#2E7D5B;}
+  .new-prompt-form{background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px; margin-bottom:10px;}
+  .new-prompt-form textarea{width:100%; border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px; font-family:inherit; font-size:13.5px; min-height:90px; background:#fff; margin-bottom:10px;}
+  .new-prompt-form-actions{display:flex; justify-content:flex-end; gap:8px;}
+  .btn-save-sm{background:var(--ink); color:#fff; border:none; border-radius:999px; padding:8px 14px; font-size:12.5px; font-weight:700;}
+  .btn-save-sm:hover{background:var(--accent);}
+  .btn-cancel-sm{background:transparent; border:none; color:var(--ink-muted); font-size:12.5px; font-weight:600;}
+
+  .toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
+    padding:11px 20px; border-radius:999px; font-size:13px; font-weight:600; z-index:200; box-shadow:0 10px 30px rgba(0,0,0,.25);
+  }
+
+  @media (max-width:760px){
+    .lb-inner{flex-direction:column; overflow-y:auto;}
+    .lb-img-pane{min-height:260px;}
+    .lb-side{max-width:none;}
+    main{padding:28px 16px 80px;}
+    .topbar{padding:14px 16px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="login-screen hidden">
+  <span class="eyebrow">Moodboard Hub</span>
+  <h1>브랜드 무드보드 허브</h1>
+  <p>레퍼런스 이미지를 모으고, AI 프롬프트를 정리하고,<br/>완성본까지 한 곳에서 관리해요.</p>
+  <button class="btn-google" id="google-login-btn">
+    <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.87-3.04.87-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.73A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.19.29-1.73V4.94H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.06l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+    Google로 로그인
+  </button>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="brand-mark"><span class="dot"></span>무드보드 허브</div>
+    <div class="topbar-right">
+      <div class="user-chip"><img id="user-avatar" src="" alt=""/><span id="user-name"></span></div>
+      <button class="btn-ghost" id="logout-btn">로그아웃</button>
+    </div>
+  </div>
+  <main id="main"></main>
+</div>
+
+<div id="toast-root"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, doc, onSnapshot, query, where,
+  orderBy, serverTimestamp, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBQMS747pCIMrTaML4J0ZZm5AtxshJ4qv0",
+  authDomain: "moodboard-db951.firebaseapp.com",
+  projectId: "moodboard-db951",
+  storageBucket: "moodboard-db951.firebasestorage.app",
+  messagingSenderId: "13652228996",
+  appId: "1:13652228996:web:3f1aa06604aac382077bd1"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* ---------------- state ---------------- */
+let currentUser = null;
+let brands = [];
+let route = { page: "list", brandId: null, tab: "moodboard" };
+let unsubBrands = null;
+let unsubImages = null;
+let currentImages = []; // moodboard or completed images for active brand
+let promptsByImage = {}; // imageId -> [{id, text, version, createdAt}]
+let unsubPromptListeners = {};
+let lightboxImageId = null;
+let lightboxActiveVersionIdx = null;
+let pendingJumpToLatest = false;
+
+const mainEl = document.getElementById("main");
+
+/* ---------------- auth ---------------- */
+document.getElementById("google-login-btn").addEventListener("click", () => {
+  signInWithPopup(auth, new GoogleAuthProvider()).catch(err => showToast("로그인 실패: " + err.message));
+});
+document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
+
+onAuthStateChanged(auth, (user) => {
+  currentUser = user;
+  const loginScreen = document.getElementById("login-screen");
+  const appEl = document.getElementById("app");
+  if (user) {
+    loginScreen.classList.add("hidden");
+    appEl.classList.remove("hidden");
+    document.getElementById("user-avatar").src = user.photoURL || "";
+    document.getElementById("user-name").textContent = user.displayName || user.email || "";
+    subscribeBrands();
+  } else {
+    loginScreen.classList.remove("hidden");
+    appEl.classList.add("hidden");
+    if (unsubBrands) unsubBrands();
+    if (unsubImages) unsubImages();
+  }
+});
+
+/* ---------------- firestore subscriptions ---------------- */
+function subscribeBrands(){
+  const q = query(collection(db, "brands"), orderBy("createdAt", "desc"));
+  unsubBrands = onSnapshot(q, (snap) => {
+    brands = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+
+function subscribeImages(brandId){
+  if (unsubImages) unsubImages();
+  const q = query(collection(db, "images"), where("brandId", "==", brandId), orderBy("createdAt", "desc"));
+  unsubImages = onSnapshot(q, (snap) => {
+    currentImages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+    if (route.tab === "moodboard") {
+      currentImages.filter(i => i.type === "moodboard").forEach(img => subscribePrompts(img.id));
+    }
+  });
+}
+
+function subscribePrompts(imageId){
+  if (unsubPromptListeners[imageId]) return;
+  const q = query(collection(db, "prompts"), where("imageId", "==", imageId), orderBy("createdAt", "asc"));
+  unsubPromptListeners[imageId] = onSnapshot(q, (snap) => {
+    promptsByImage[imageId] = snap.docs.map((d,i) => ({ id: d.id, version: i+1, ...d.data() }));
+    render();
+  });
+}
+
+/* ---------------- routing ---------------- */
+window.addEventListener("hashchange", handleHash);
+function handleHash(){
+  const h = location.hash.replace("#","");
+  if (!h) { route = { page: "list", brandId: null, tab: "moodboard" }; }
+  else {
+    const parts = h.split("/");
+    if (parts[0] === "brand" && parts[1]) {
+      route = { page: "brand", brandId: parts[1], tab: parts[2] || "moodboard" };
+      subscribeImages(parts[1]);
+    }
+  }
+  render();
+}
+handleHash();
+
+function go(hash){ location.hash = hash; }
+
+/* ---------------- helpers ---------------- */
+function showToast(msg){
+  const root = document.getElementById("toast-root");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  root.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+function esc(str){
+  const d = document.createElement("div");
+  d.textContent = str ?? "";
+  return d.innerHTML;
+}
+function fmtDate(ts){
+  if (!ts || !ts.toDate) return "";
+  const d = ts.toDate();
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+}
+
+/* ---------------- render ---------------- */
+function render(){
+  if (route.page === "list") renderBrandList();
+  else if (route.page === "brand") renderBrandWorkspace();
+  if (lightboxImageId) {
+    const prompts = promptsByImage[lightboxImageId] || [];
+    if (pendingJumpToLatest || lightboxActiveVersionIdx === null || lightboxActiveVersionIdx >= prompts.length) {
+      lightboxActiveVersionIdx = prompts.length ? prompts.length - 1 : null;
+      pendingJumpToLatest = false;
+    }
+    renderLightbox();
+  }
+}
+
+function renderBrandList(){
+  const cards = brands.map(b => `
+    <a class="brand-card" href="#brand/${b.id}">
+      <div class="cover" style="${b.coverUrl ? `background-image:url('${esc(b.coverUrl)}')` : ""}">${b.coverUrl ? "" : "NO COVER"}</div>
+      <div class="body">
+        <p class="name">${esc(b.name)}</p>
+        <p class="meta">${b.createdAt ? fmtDate(b.createdAt) : ""}</p>
+      </div>
+    </a>
+  `).join("");
+
+  mainEl.innerHTML = `
+    <div class="page-head">
+      <div>
+        <span class="eyebrow">Brands</span>
+        <h1>브랜드</h1>
+      </div>
+      <button class="btn-primary" id="open-add-brand">+ 브랜드 등록</button>
+    </div>
+    <div class="brand-grid">
+      ${cards}
+      <button class="brand-card add-new" id="open-add-brand-2">
+        <span class="plus">+</span>
+        <span>새 브랜드 등록</span>
+      </button>
+    </div>
+    ${brands.length === 0 ? `<p class="empty-note">아직 등록된 브랜드가 없어요. 첫 브랜드를 등록해보세요.</p>` : ""}
+  `;
+  document.getElementById("open-add-brand").addEventListener("click", openAddBrandModal);
+  document.getElementById("open-add-brand-2").addEventListener("click", openAddBrandModal);
+}
+
+function renderBrandWorkspace(){
+  const brand = brands.find(b => b.id === route.brandId);
+  if (!brand) { mainEl.innerHTML = `<p class="empty-note">브랜드를 불러오는 중...</p>`; return; }
+
+  const moodImages = currentImages.filter(i => i.type === "moodboard");
+  const doneImages = currentImages.filter(i => i.type === "completed");
+
+  mainEl.innerHTML = `
+    <a class="back-link" href="#">&larr; 브랜드 목록</a>
+    <div class="ws-head"><h1>${esc(brand.name)}</h1></div>
+    <div class="tabs">
+      <a class="tab ${route.tab==='moodboard'?'active':''}" href="#brand/${brand.id}/moodboard">무드보드</a>
+      <a class="tab ${route.tab==='completed'?'active':''}" href="#brand/${brand.id}/completed">완성본</a>
+    </div>
+    <div id="tab-body"></div>
+  `;
+
+  const tabBody = document.getElementById("tab-body");
+
+  if (route.tab === "moodboard") {
+    moodImages.forEach(img => subscribePrompts(img.id));
+    tabBody.innerHTML = `
+      <div class="toolbar"><span class="count">이미지 ${moodImages.length}장</span></div>
+      <div class="masonry">
+        <button class="m-add" id="open-add-mood">
+          <span class="plus">+</span><span>레퍼런스 이미지 추가</span>
+        </button>
+        ${moodImages.map(img => {
+          const prompts = promptsByImage[img.id] || [];
+          return `
+          <div class="m-item" data-id="${img.id}">
+            <img src="${esc(img.url)}" loading="lazy" alt=""/>
+            <span class="prompt-count">프롬프트 ${prompts.length}</span>
+          </div>`;
+        }).join("")}
+      </div>
+      ${moodImages.length === 0 ? `<p class="empty-note">아직 올라온 레퍼런스 이미지가 없어요. 이미지를 추가해보세요.</p>` : ""}
+    `;
+    document.getElementById("open-add-mood").addEventListener("click", () => openAddImageModal(brand.id, "moodboard"));
+    tabBody.querySelectorAll(".m-item").forEach(el => {
+      el.addEventListener("click", () => openLightbox(el.dataset.id));
+    });
+  } else {
+    tabBody.innerHTML = `
+      <div class="toolbar"><span class="count">완성본 ${doneImages.length}개</span></div>
+      <div class="done-grid">
+        <button class="done-add" id="open-add-done">
+          <span class="plus" style="font-size:24px;">+</span><span>완성본 추가</span>
+        </button>
+        ${doneImages.map(img => {
+          const ref = moodImages.find(m => m.id === img.refImageId);
+          return `
+          <div class="done-card">
+            <img class="img" src="${esc(img.url)}" loading="lazy" alt=""/>
+            <div class="body">
+              ${img.note ? `<p class="note">${esc(img.note)}</p>` : ""}
+              ${ref ? `<p class="ref">원본 무드보드 참조됨</p>` : `<p class="ref">참조 없음</p>`}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+      ${doneImages.length === 0 ? `<p class="empty-note">아직 저장된 완성본이 없어요.</p>` : ""}
+    `;
+    document.getElementById("open-add-done").addEventListener("click", () => openAddCompletedModal(brand.id, moodImages));
+  }
+}
+
+/* ---------------- add brand modal ---------------- */
+function openAddBrandModal(){
+  renderOverlay(`
+    <div class="modal">
+      <h2>새 브랜드 등록</h2>
+      <p class="sub">브랜드를 등록하면 전용 무드보드 공간이 만들어져요.</p>
+      <div class="field">
+        <label>브랜드명</label>
+        <input type="text" id="brand-name-input" placeholder="예: RE:BL" />
+      </div>
+      <div class="field">
+        <label>커버 이미지 URL (선택)</label>
+        <input type="text" id="brand-cover-input" placeholder="https://..." />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancel-modal">취소</button>
+        <button class="btn-primary solo" id="save-brand">등록</button>
+      </div>
+    </div>
+  `);
+  document.getElementById("cancel-modal").addEventListener("click", closeOverlay);
+  document.getElementById("save-brand").addEventListener("click", async () => {
+    const name = document.getElementById("brand-name-input").value.trim();
+    const cover = document.getElementById("brand-cover-input").value.trim();
+    if (!name) { showToast("브랜드명을 입력해주세요"); return; }
+    await addDoc(collection(db, "brands"), {
+      name, coverUrl: cover || null, createdAt: serverTimestamp(), createdBy: currentUser.uid
+    });
+    closeOverlay();
+    showToast("브랜드가 등록됐어요");
+  });
+}
+
+/* ---------------- add image (moodboard) modal ---------------- */
+function openAddImageModal(brandId, type){
+  renderOverlay(`
+    <div class="modal">
+      <h2>레퍼런스 이미지 추가</h2>
+      <p class="sub">이미지 URL을 붙여넣어주세요. (파일 직접 업로드는 곧 추가돼요)</p>
+      <div class="field">
+        <label>이미지 URL</label>
+        <input type="text" id="img-url-input" placeholder="https://..." />
+      </div>
+      <div class="field">
+        <label>태그 (선택)</label>
+        <input type="text" id="img-tag-input" placeholder="예: Hero, Texture, Lifestyle..." />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancel-modal">취소</button>
+        <button class="btn-primary solo" id="save-img">추가</button>
+      </div>
+    </div>
+  `);
+  document.getElementById("cancel-modal").addEventListener("click", closeOverlay);
+  document.getElementById("save-img").addEventListener("click", async () => {
+    const url = document.getElementById("img-url-input").value.trim();
+    const tag = document.getElementById("img-tag-input").value.trim();
+    if (!url) { showToast("이미지 URL을 입력해주세요"); return; }
+    await addDoc(collection(db, "images"), {
+      brandId, type, url, tag: tag || null, createdAt: serverTimestamp(), createdBy: currentUser.uid
+    });
+    closeOverlay();
+    showToast("이미지가 추가됐어요");
+  });
+}
+
+/* ---------------- add completed modal ---------------- */
+function openAddCompletedModal(brandId, moodImages){
+  const options = moodImages.map(m => `<option value="${m.id}">${(m.tag || m.id.slice(0,6))}</option>`).join("");
+  renderOverlay(`
+    <div class="modal">
+      <h2>완성본 추가</h2>
+      <p class="sub">실제로 뽑아낸 연출컷/영상을 저장해요.</p>
+      <div class="field">
+        <label>이미지 URL</label>
+        <input type="text" id="done-url-input" placeholder="https://..." />
+      </div>
+      <div class="field">
+        <label>메모 (선택)</label>
+        <input type="text" id="done-note-input" placeholder="예: 인스타 릴스용 히어로컷" />
+      </div>
+      <div class="field">
+        <label>원본 무드보드 참조 (선택)</label>
+        <select id="done-ref-select">
+          <option value="">참조 없음</option>
+          ${options}
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="cancel-modal">취소</button>
+        <button class="btn-primary solo" id="save-done">추가</button>
+      </div>
+    </div>
+  `);
+  document.getElementById("cancel-modal").addEventListener("click", closeOverlay);
+  document.getElementById("save-done").addEventListener("click", async () => {
+    const url = document.getElementById("done-url-input").value.trim();
+    const note = document.getElementById("done-note-input").value.trim();
+    const refImageId = document.getElementById("done-ref-select").value || null;
+    if (!url) { showToast("이미지 URL을 입력해주세요"); return; }
+    await addDoc(collection(db, "images"), {
+      brandId, type: "completed", url, note: note || null, refImageId,
+      createdAt: serverTimestamp(), createdBy: currentUser.uid
+    });
+    closeOverlay();
+    showToast("완성본이 저장됐어요");
+  });
+}
+
+/* ---------------- lightbox (image + prompt versions) ---------------- */
+function openLightbox(imageId){
+  lightboxImageId = imageId;
+  const prompts = promptsByImage[imageId] || [];
+  lightboxActiveVersionIdx = prompts.length ? prompts.length - 1 : null;
+  renderLightbox();
+}
+function closeLightbox(){
+  lightboxImageId = null;
+  document.querySelectorAll(".lightbox").forEach(el => el.remove());
+}
+function renderLightbox(){
+  document.querySelectorAll(".lightbox").forEach(el => el.remove());
+  const img = currentImages.find(i => i.id === lightboxImageId);
+  if (!img) return;
+  const prompts = promptsByImage[lightboxImageId] || [];
+
+  const wrap = document.createElement("div");
+  wrap.className = "lightbox";
+  wrap.innerHTML = `
+    <button class="lb-close" id="lb-close-btn">&times;</button>
+    <div class="lb-inner">
+      <div class="lb-img-pane"><img src="${esc(img.url)}" alt=""/></div>
+      <div class="lb-side">
+        <span class="lb-title">${img.tag ? esc(img.tag) : "Reference"}</span>
+        <h3>프롬프트</h3>
+        <div class="version-tabs" id="version-tabs">
+          ${prompts.map((p, idx) => `
+            <button class="v-tab ${idx === lightboxActiveVersionIdx ? 'active':''}" data-idx="${idx}">
+              프롬프트 ${idx+1}${idx === prompts.length-1 ? '<span class="latest-dot"></span>' : ''}
+            </button>
+          `).join("")}
+          <button class="v-add-tab" id="v-add-btn">+ 새 프롬프트</button>
+        </div>
+        <div id="prompt-content"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+  document.getElementById("lb-close-btn").addEventListener("click", closeLightbox);
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) closeLightbox(); });
+
+  wrap.querySelectorAll(".v-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      lightboxActiveVersionIdx = parseInt(btn.dataset.idx, 10);
+      renderLightbox();
+    });
+  });
+  document.getElementById("v-add-btn").addEventListener("click", () => {
+    renderNewPromptForm();
+  });
+
+  renderPromptContent();
+}
+function renderPromptContent(){
+  const target = document.getElementById("prompt-content");
+  if (!target) return;
+  const prompts = promptsByImage[lightboxImageId] || [];
+  if (lightboxActiveVersionIdx === null || !prompts[lightboxActiveVersionIdx]) {
+    target.innerHTML = `
+      <div class="prompt-box" style="display:flex;align-items:center;justify-content:center;color:var(--ink-faint);">
+        아직 프롬프트가 없어요
+      </div>
+      <div class="lb-actions">
+        <button class="btn-copy" id="add-first-prompt">+ 첫 프롬프트 작성</button>
+      </div>
+    `;
+    document.getElementById("add-first-prompt").addEventListener("click", renderNewPromptForm);
+    return;
+  }
+  const p = prompts[lightboxActiveVersionIdx];
+  target.innerHTML = `
+    <div class="prompt-box">${esc(p.text)}</div>
+    <div class="prompt-date">${p.createdAt ? fmtDate(p.createdAt) : ""} 작성</div>
+    <div class="lb-actions">
+      <button class="btn-copy" id="copy-btn">복사하기</button>
+    </div>
+  `;
+  document.getElementById("copy-btn").addEventListener("click", async (e) => {
+    await navigator.clipboard.writeText(p.text);
+    e.target.textContent = "복사됨!";
+    e.target.classList.add("copied");
+    setTimeout(() => { e.target.textContent = "복사하기"; e.target.classList.remove("copied"); }, 1500);
+  });
+}
+function renderNewPromptForm(){
+  const target = document.getElementById("prompt-content");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="new-prompt-form">
+      <textarea id="new-prompt-text" placeholder="AI 이미지 생성 프롬프트를 입력하세요..."></textarea>
+      <div class="new-prompt-form-actions">
+        <button class="btn-cancel-sm" id="cancel-new-prompt">취소</button>
+        <button class="btn-save-sm" id="save-new-prompt">저장</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("cancel-new-prompt").addEventListener("click", renderPromptContent);
+  document.getElementById("save-new-prompt").addEventListener("click", async () => {
+    const text = document.getElementById("new-prompt-text").value.trim();
+    if (!text) { showToast("프롬프트 내용을 입력해주세요"); return; }
+    pendingJumpToLatest = true;
+    await addDoc(collection(db, "prompts"), {
+      imageId: lightboxImageId, text, createdAt: serverTimestamp(), createdBy: currentUser.uid
+    });
+    showToast("프롬프트가 저장됐어요");
+  });
+}
+
+/* ---------------- generic overlay ---------------- */
+function renderOverlay(innerHtml){
+  closeOverlay();
+  const el = document.createElement("div");
+  el.className = "overlay";
+  el.id = "generic-overlay";
+  el.innerHTML = innerHtml;
+  document.body.appendChild(el);
+  el.addEventListener("click", (e) => { if (e.target === el) closeOverlay(); });
+}
+function closeOverlay(){
+  const el = document.getElementById("generic-overlay");
+  if (el) el.remove();
+}
+</script>
+</body>
+</html>
