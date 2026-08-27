@@ -102,6 +102,13 @@
     overflow:hidden; display:flex; flex-direction:column; transition:.18s; position:relative;
   }
   .brand-card:hover{transform:translateY(-3px); box-shadow:0 14px 30px rgba(20,20,26,.08); border-color:var(--ink-faint);}
+  .card-delete{
+    position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%;
+    background:rgba(20,20,26,.66); color:#fff; border:none; font-size:14px; display:flex;
+    align-items:center; justify-content:center; opacity:0; transition:.15s; z-index:5;
+  }
+  .brand-card:hover .card-delete, .m-item:hover .card-delete, .done-card:hover .card-delete{opacity:1;}
+  .card-delete:hover{background:var(--accent);}
   .brand-card .cover{
     height:140px; background:var(--tag-bg); background-size:cover; background-position:center;
     display:flex; align-items:center; justify-content:center; color:var(--ink-faint); font-size:12px;
@@ -170,6 +177,7 @@
   .done-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px;}
   .done-card{
     background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
+    position:relative;
   }
   .done-card .img{width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--tag-bg);}
   .done-card .body{padding:12px 14px;}
@@ -224,6 +232,11 @@
     z-index:120;
   }
   .lb-close:hover{background:rgba(255,255,255,.26);}
+  .lb-delete{
+    position:absolute; top:20px; right:66px; background:rgba(255,90,54,.16); color:#FF7A5C; border:1px solid rgba(255,90,54,.4);
+    padding:0 16px; height:36px; border-radius:999px; font-size:12.5px; font-weight:700; z-index:120;
+  }
+  .lb-delete:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
   .lb-title{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); font-weight:700; margin-bottom:4px;}
   .lb-side h3{margin:0 0 16px; font-size:18px; font-weight:800;}
   .version-tabs{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
@@ -303,7 +316,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, addDoc, doc, onSnapshot, query, where,
-  orderBy, serverTimestamp, deleteDoc
+  orderBy, serverTimestamp, deleteDoc, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   getStorage, ref, uploadBytes, getDownloadURL
@@ -352,6 +365,21 @@ async function uploadImageFile(file, pathPrefix){
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
   return await getDownloadURL(storageRef);
+}
+
+/* ---------------- delete helpers ---------------- */
+async function deleteImageAndPrompts(imageId){
+  const promptSnap = await getDocs(query(collection(db, "prompts"), where("imageId", "==", imageId)));
+  await Promise.all(promptSnap.docs.map(d => deleteDoc(doc(db, "prompts", d.id))));
+  await deleteDoc(doc(db, "images", imageId));
+}
+
+async function deleteBrandCascade(brandId){
+  const imgSnap = await getDocs(query(collection(db, "images"), where("brandId", "==", brandId)));
+  for (const imgDoc of imgSnap.docs) {
+    await deleteImageAndPrompts(imgDoc.id);
+  }
+  await deleteDoc(doc(db, "brands", brandId));
 }
 
 /* ---------------- state ---------------- */
@@ -481,6 +509,7 @@ function render(){
 function renderBrandList(){
   const cards = brands.map(b => `
     <a class="brand-card" href="#brand/${b.id}">
+      <button class="card-delete" data-delete-brand="${b.id}" title="브랜드 삭제">&times;</button>
       <div class="cover" style="${b.coverUrl ? `background-image:url('${esc(b.coverUrl)}')` : ""}">${b.coverUrl ? "" : "NO COVER"}</div>
       <div class="body">
         <p class="name">${esc(b.name)}</p>
@@ -508,6 +537,15 @@ function renderBrandList(){
   `;
   document.getElementById("open-add-brand").addEventListener("click", openAddBrandModal);
   document.getElementById("open-add-brand-2").addEventListener("click", openAddBrandModal);
+  mainEl.querySelectorAll("[data-delete-brand]").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm("이 브랜드와 안의 모든 이미지·프롬프트가 삭제돼요. 계속할까요?")) return;
+      btn.textContent = "…";
+      try { await deleteBrandCascade(btn.dataset.deleteBrand); showToast("브랜드가 삭제됐어요"); }
+      catch(err) { showToast("삭제 실패: " + err.message); }
+    });
+  });
 }
 
 function renderBrandWorkspace(){
@@ -541,6 +579,7 @@ function renderBrandWorkspace(){
           const prompts = promptsByImage[img.id] || [];
           return `
           <div class="m-item" data-id="${img.id}">
+            <button class="card-delete" data-delete-image="${img.id}" title="이미지 삭제">&times;</button>
             <img src="${esc(img.url)}" loading="lazy" alt=""/>
             <span class="prompt-count">프롬프트 ${prompts.length}</span>
           </div>`;
@@ -551,6 +590,14 @@ function renderBrandWorkspace(){
     document.getElementById("open-add-mood").addEventListener("click", () => openAddImageModal(brand.id, "moodboard"));
     tabBody.querySelectorAll(".m-item").forEach(el => {
       el.addEventListener("click", () => openLightbox(el.dataset.id));
+    });
+    tabBody.querySelectorAll("[data-delete-image]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("이 이미지와 저장된 프롬프트가 모두 삭제돼요. 계속할까요?")) return;
+        try { await deleteImageAndPrompts(btn.dataset.deleteImage); showToast("이미지가 삭제됐어요"); }
+        catch(err) { showToast("삭제 실패: " + err.message); }
+      });
     });
   } else {
     tabBody.innerHTML = `
@@ -563,6 +610,7 @@ function renderBrandWorkspace(){
           const ref = moodImages.find(m => m.id === img.refImageId);
           return `
           <div class="done-card">
+            <button class="card-delete" data-delete-image="${img.id}" title="완성본 삭제">&times;</button>
             <img class="img" src="${esc(img.url)}" loading="lazy" alt=""/>
             <div class="body">
               ${img.note ? `<p class="note">${esc(img.note)}</p>` : ""}
@@ -574,6 +622,14 @@ function renderBrandWorkspace(){
       ${doneImages.length === 0 ? `<p class="empty-note">아직 저장된 완성본이 없어요.</p>` : ""}
     `;
     document.getElementById("open-add-done").addEventListener("click", () => openAddCompletedModal(brand.id, moodImages));
+    tabBody.querySelectorAll("[data-delete-image]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("이 완성본을 삭제할까요?")) return;
+        try { await deleteImageAndPrompts(btn.dataset.deleteImage); showToast("완성본이 삭제됐어요"); }
+        catch(err) { showToast("삭제 실패: " + err.message); }
+      });
+    });
   }
 }
 
@@ -727,6 +783,7 @@ function renderLightbox(){
   wrap.className = "lightbox";
   wrap.innerHTML = `
     <button class="lb-close" id="lb-close-btn">&times;</button>
+    <button class="lb-delete" id="lb-delete-btn" title="이미지 삭제">삭제</button>
     <div class="lb-inner">
       <div class="lb-img-pane"><img src="${esc(img.url)}" alt=""/></div>
       <div class="lb-side">
@@ -746,6 +803,11 @@ function renderLightbox(){
   `;
   document.body.appendChild(wrap);
   document.getElementById("lb-close-btn").addEventListener("click", closeLightbox);
+  document.getElementById("lb-delete-btn").addEventListener("click", async () => {
+    if (!confirm("이 이미지와 저장된 프롬프트가 모두 삭제돼요. 계속할까요?")) return;
+    try { await deleteImageAndPrompts(lightboxImageId); closeLightbox(); showToast("이미지가 삭제됐어요"); }
+    catch(err) { showToast("삭제 실패: " + err.message); }
+  });
   wrap.addEventListener("click", (e) => { if (e.target === wrap) closeLightbox(); });
 
   wrap.querySelectorAll(".v-tab").forEach(btn => {
