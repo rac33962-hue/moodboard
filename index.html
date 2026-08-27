@@ -305,6 +305,9 @@ import {
   getFirestore, collection, addDoc, doc, onSnapshot, query, where,
   orderBy, serverTimestamp, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getStorage, ref, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBQMS747pCIMrTaML4J0ZZm5AtxshJ4qv0",
@@ -318,6 +321,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
+
+/* ---------------- image resize + upload helper ---------------- */
+function resizeImageFile(file, maxDim = 1920, quality = 0.85){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+        else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadImageFile(file, pathPrefix){
+  const blob = await resizeImageFile(file);
+  const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { contentType: "image/jpeg" });
+  return await getDownloadURL(storageRef);
+}
 
 /* ---------------- state ---------------- */
 let currentUser = null;
@@ -364,28 +399,31 @@ function subscribeBrands(){
   unsubBrands = onSnapshot(q, (snap) => {
     brands = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
-  });
+  }, (err) => { console.error(err); showToast("브랜드 불러오기 실패: " + err.message); });
 }
 
 function subscribeImages(brandId){
   if (unsubImages) unsubImages();
-  const q = query(collection(db, "images"), where("brandId", "==", brandId), orderBy("createdAt", "desc"));
+  const q = query(collection(db, "images"), where("brandId", "==", brandId));
   unsubImages = onSnapshot(q, (snap) => {
     currentImages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    currentImages.sort((a,b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     render();
     if (route.tab === "moodboard") {
       currentImages.filter(i => i.type === "moodboard").forEach(img => subscribePrompts(img.id));
     }
-  });
+  }, (err) => { console.error(err); showToast("이미지 불러오기 실패: " + err.message); });
 }
 
 function subscribePrompts(imageId){
   if (unsubPromptListeners[imageId]) return;
-  const q = query(collection(db, "prompts"), where("imageId", "==", imageId), orderBy("createdAt", "asc"));
+  const q = query(collection(db, "prompts"), where("imageId", "==", imageId));
   unsubPromptListeners[imageId] = onSnapshot(q, (snap) => {
-    promptsByImage[imageId] = snap.docs.map((d,i) => ({ id: d.id, version: i+1, ...d.data() }));
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    list.sort((a,b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+    promptsByImage[imageId] = list.map((p, i) => ({ ...p, version: i+1 }));
     render();
-  });
+  }, (err) => { console.error(err); showToast("프롬프트 불러오기 실패: " + err.message); });
 }
 
 /* ---------------- routing ---------------- */
@@ -577,10 +615,10 @@ function openAddImageModal(brandId, type){
   renderOverlay(`
     <div class="modal">
       <h2>레퍼런스 이미지 추가</h2>
-      <p class="sub">이미지 URL을 붙여넣어주세요. (파일 직접 업로드는 곧 추가돼요)</p>
+      <p class="sub">이미지 파일을 선택해주세요. (자동으로 최적화되어 업로드돼요)</p>
       <div class="field">
-        <label>이미지 URL</label>
-        <input type="text" id="img-url-input" placeholder="https://..." />
+        <label>이미지 파일</label>
+        <input type="file" id="img-file-input" accept="image/*" />
       </div>
       <div class="field">
         <label>태그 (선택)</label>
@@ -593,15 +631,25 @@ function openAddImageModal(brandId, type){
     </div>
   `);
   document.getElementById("cancel-modal").addEventListener("click", closeOverlay);
-  document.getElementById("save-img").addEventListener("click", async () => {
-    const url = document.getElementById("img-url-input").value.trim();
+  document.getElementById("save-img").addEventListener("click", async (e) => {
+    const fileInput = document.getElementById("img-file-input");
+    const file = fileInput.files[0];
     const tag = document.getElementById("img-tag-input").value.trim();
-    if (!url) { showToast("이미지 URL을 입력해주세요"); return; }
-    await addDoc(collection(db, "images"), {
-      brandId, type, url, tag: tag || null, createdAt: serverTimestamp(), createdBy: currentUser.uid
-    });
-    closeOverlay();
-    showToast("이미지가 추가됐어요");
+    if (!file) { showToast("이미지 파일을 선택해주세요"); return; }
+    e.target.disabled = true;
+    e.target.textContent = "업로드 중...";
+    try {
+      const url = await uploadImageFile(file, `images/${brandId}`);
+      await addDoc(collection(db, "images"), {
+        brandId, type, url, tag: tag || null, createdAt: serverTimestamp(), createdBy: currentUser.uid
+      });
+      closeOverlay();
+      showToast("이미지가 추가됐어요");
+    } catch(err) {
+      showToast("업로드 실패: " + err.message);
+      e.target.disabled = false;
+      e.target.textContent = "추가";
+    }
   });
 }
 
@@ -613,8 +661,8 @@ function openAddCompletedModal(brandId, moodImages){
       <h2>완성본 추가</h2>
       <p class="sub">실제로 뽑아낸 연출컷/영상을 저장해요.</p>
       <div class="field">
-        <label>이미지 URL</label>
-        <input type="text" id="done-url-input" placeholder="https://..." />
+        <label>이미지 파일</label>
+        <input type="file" id="done-file-input" accept="image/*" />
       </div>
       <div class="field">
         <label>메모 (선택)</label>
@@ -634,17 +682,27 @@ function openAddCompletedModal(brandId, moodImages){
     </div>
   `);
   document.getElementById("cancel-modal").addEventListener("click", closeOverlay);
-  document.getElementById("save-done").addEventListener("click", async () => {
-    const url = document.getElementById("done-url-input").value.trim();
+  document.getElementById("save-done").addEventListener("click", async (e) => {
+    const fileInput = document.getElementById("done-file-input");
+    const file = fileInput.files[0];
     const note = document.getElementById("done-note-input").value.trim();
     const refImageId = document.getElementById("done-ref-select").value || null;
-    if (!url) { showToast("이미지 URL을 입력해주세요"); return; }
-    await addDoc(collection(db, "images"), {
-      brandId, type: "completed", url, note: note || null, refImageId,
-      createdAt: serverTimestamp(), createdBy: currentUser.uid
-    });
-    closeOverlay();
-    showToast("완성본이 저장됐어요");
+    if (!file) { showToast("이미지 파일을 선택해주세요"); return; }
+    e.target.disabled = true;
+    e.target.textContent = "업로드 중...";
+    try {
+      const url = await uploadImageFile(file, `images/${brandId}`);
+      await addDoc(collection(db, "images"), {
+        brandId, type: "completed", url, note: note || null, refImageId,
+        createdAt: serverTimestamp(), createdBy: currentUser.uid
+      });
+      closeOverlay();
+      showToast("완성본이 저장됐어요");
+    } catch(err) {
+      showToast("업로드 실패: " + err.message);
+      e.target.disabled = false;
+      e.target.textContent = "추가";
+    }
   });
 }
 
